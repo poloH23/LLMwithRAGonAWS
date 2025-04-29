@@ -12,7 +12,7 @@ def get_root() -> None:
     root = os.environ['PROJECT_ROOT']
     :return:None
     """
-    # Allow to use the ".env" file
+    # Allow using the ".env" file
     load_dotenv()
 
     abs_path = os.path.abspath(os.path.dirname(__file__))

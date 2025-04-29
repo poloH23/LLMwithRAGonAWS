@@ -1,7 +1,8 @@
 # 📌 Project Name
 
-A clean and extensible Python project starter kit for modern development.  
-Includes automatic formatting, linting, Git hook automation, and project folder preservation.
+This project builds a Line chatbot that provides legal information based on Taiwan-Law-LLaMA, a large language model fine-tuned on Taiwanese legal texts. The system integrates a Retrieval-Augmented Generation (RAG) pipeline to enhance factual accuracy and contextual relevance.
+
+It is designed for deployment on AWS EC2 and supports scalable backend services via FastAPI, document indexing with FAISS, and a custom Line bot interface.
 
 ---
 
@@ -26,11 +27,10 @@ Includes automatic formatting, linting, Git hook automation, and project folder 
 
 ## ✨ Features
 
-- Feature 1
-- Feature 2
-- Feature 3  
-
-*Example: RESTful API with FastAPI, Model training with PyTorch, Dockerized deployment.*
+- 🔍 RAG Integration: Combines Taiwan-Law-LLaMA with a vector store for legal document retrieval.
+- 💬 Line Chatbot: Interactive legal Q&A through the Line Messaging API.
+- 🚀 AWS Deployment: Easily deployable on EC2 instances with Docker support.
+- ⚖️ Legal Domain Focus: Optimized for civil and administrative law queries in Taiwan.
 
 ---
 

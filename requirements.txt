@@ -2,19 +2,24 @@
 pre-commit
 pytest
 pandas
-numpy
+numpy~=1.26.4
 black
 ruff
 
 # FastAPI requirement
-fastapi~=0.111.0
-uvicorn[standard]~=0.29.0
+fastapi~=0.115.5
+uvicorn[standard]~=0.32.1
 
 # Flask requirement
-flask~=3.0.3
+flask~=3.1.0
 
 # Ngrok requirements
 pyngrok
 
 python-dotenv~=1.0.1
 PyYAML~=6.0.1
+
+torch~=2.5.1
+transformers~=4.46.3
+requests~=2.32.3
+line-bot-sdk~=3.14.2
