@@ -15,3 +15,13 @@ def test_list_append():
     data.append("item")
     assert len(data) == 1
     assert data[0] == "item"
+
+
+def test_token():
+    from lib.token import get_line_access
+    from lib.token import get_line_secret
+
+    token = get_line_access()
+    secret = get_line_secret()
+    assert token != "", print(token)
+    assert secret != "", print(secret)

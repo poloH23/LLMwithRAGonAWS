@@ -109,8 +109,8 @@ def llama_generate_response(
     return str_result
 
 
-def LlmWithoutRAG(llm_model: str, query: str, max_token: int) -> str:
-    # "Retrieve the response
+def llm_without_rag(llm_model: str, query: str, max_token: int) -> str:
+    # Retrieve the response
     answer = llama_generate_response(
         model_name=llm_model, context="", query=query, max_token=max_token
     )
@@ -151,7 +151,7 @@ def llm_with_rag(
     return answer
 
 
-def LlamaResponse(embeddings_path: str, query: str) -> str:
+def llama_response(embeddings_path: str, query: str) -> str:
     # Load vector data
     texts, embeddings = load_embeddings(embedding_path=embeddings_path)
 
@@ -213,7 +213,7 @@ def LlamaResponse(embeddings_path: str, query: str) -> str:
     return result
 
 
-def LlamaJudgement(
+def llama_judgement(
     answer_x: str,
     answer_y: str,
 ) -> str:
@@ -260,12 +260,12 @@ def LlamaJudgement(
     return judgement
 
 
-def ResponseWithJudgement(query: str) -> str:
+def response_with_judgement(query: str) -> str:
     # Generate two responses
-    answer_1 = LlamaResponse(query=query)
+    answer_1 = llama_response(query=query)
     answer_1 = answer_1.replace("\n", "").replace("。", "。\n")
 
-    answer_2 = LlamaResponse(query=query)
+    answer_2 = llama_response(query=query)
     answer_2 = answer_2.replace("\n", "").replace("。", "。\n")
 
     # Use a loop to get the best response
@@ -273,7 +273,7 @@ def ResponseWithJudgement(query: str) -> str:
     final_answer = ""
     while judgement_tag:
         # Select the appropriate response
-        judgement = LlamaJudgement(answer_x=answer_1, answer_y=answer_2)
+        judgement = llama_judgement(answer_x=answer_1, answer_y=answer_2)
 
         # Select the final response
         if "回答1" in judgement:
