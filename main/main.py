@@ -1,13 +1,15 @@
 import os
+from pyngrok import ngrok
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from lib.path import get_path
 from lib.token import get_hf_token
 from lib.token import get_line_access
 from lib.token import get_line_secret
 from lib.ngrok import start_ngrok
-from lib.rag import ResponseWithJudgement
+from lib.rag import response_with_judgement
 
 
 # Add HuggingFace token
@@ -19,11 +21,7 @@ token_info = get_hf_token()
 )
 
 # Get the embedding files
-fil_embeddings = os.path.join(
-    os.environ.get("PROJECT_ROOT") + os.getenv("DIR_DATA"),
-    "embeddings",
-    "laws_embedding_4chunk_2overlap_Llama.json",
-)
+fil_embeddings = os.path.join(get_path(key="DATA"), "embeddings", "laws_embedding.json")
 
 # Line bot deployment
 LINE_CHANNEL_ACCESS_TOKEN = get_line_access()
@@ -61,7 +59,7 @@ def handle_message(event):
         print(">>> Successfully received user message")
 
         # Llama generates answers
-        response = ResponseWithJudgement(query=user_message)
+        response = response_with_judgement(query=user_message)
 
         # Return answers to Line users
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response))
@@ -83,10 +81,14 @@ if __name__ == "__main__":
     # )
 
     # Start ngrok
-    ngrok_url, ngrok_process = start_ngrok(port=5000)
+    # ngrok_url, ngrok_process = start_ngrok(port=5000)
+    ngrok_url = start_ngrok(port=5000)
 
     try:
         app.run(host="0.0.0.0", port=5000)
     except KeyboardInterrupt:
         print(">>> 終止 Flask 和 Ngrok.")
-        ngrok_process.terminate()
+        # ngrok_process.terminate()
+        # Turn off this tunnel and clear all tunnels
+        ngrok.disconnect(ngrok_url)
+        ngrok.kill()

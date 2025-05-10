@@ -1,7 +1,9 @@
+import os
 import json
 import torch
 import faiss
 import numpy as np
+from lib.path import get_path
 from typing import Any
 from transformers import pipeline
 from transformers import AutoTokenizer, AutoModel
@@ -151,7 +153,7 @@ def llm_with_rag(
     return answer
 
 
-def llama_response(embeddings_path: str, query: str) -> str:
+def llama_response(model_name: str, embeddings_path: str, query: str) -> str:
     # Load vector data
     texts, embeddings = load_embeddings(embedding_path=embeddings_path)
 
@@ -159,7 +161,14 @@ def llama_response(embeddings_path: str, query: str) -> str:
     index = create_faiss_idx(embeddings=embeddings)
 
     # Retrieve relevant content
-    top_results = search_faiss_idx(query=query, idx=index, texts=texts, top_k=8)
+    top_results = search_faiss_idx(
+        model_name=model_name,
+        query=query,
+        idx=index,
+        texts=texts,
+        top_k=8,
+        max_length=512,
+    )
 
     # Merge the retrieved content into the context
     context = "\n".join([result["text"] for result in top_results])
@@ -261,11 +270,23 @@ def llama_judgement(
 
 
 def response_with_judgement(query: str) -> str:
+    # Get the embedding file
+    fil_embedding = os.path.join(
+        get_path(key="DATA"), "embeddings", "laws_embedding.json"
+    )
+
+    # Choose model
+    model_name = "lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct"
+
     # Generate two responses
-    answer_1 = llama_response(query=query)
+    answer_1 = llama_response(
+        model_name=model_name, embeddings_path=fil_embedding, query=query
+    )
     answer_1 = answer_1.replace("\n", "").replace("。", "。\n")
 
-    answer_2 = llama_response(query=query)
+    answer_2 = llama_response(
+        model_name=model_name, embeddings_path=fil_embedding, query=query
+    )
     answer_2 = answer_2.replace("\n", "").replace("。", "。\n")
 
     # Use a loop to get the best response

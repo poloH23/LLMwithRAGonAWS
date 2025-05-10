@@ -70,12 +70,12 @@ docker-run:  ## Run Docker image (IMAGE=py-base)
 	docker run -it --name $(CONTAINER) $(IMAGE)
 
 docker-run-fastapi:  ## Run the Docker image and mount the ports required by FastAPI (IMAGE=py-base)
-	#docker run -p 8000:8000 py-base uvicorn main.__init__:app --host 0.0.0.0 --port 8000
+	#docker run -p 8000:8000 py-base uvicorn main..gitkeep:app --host 0.0.0.0 --port 8000
 	docker run -d --name $(CONTAINER) -p 8000:8000 $(IMAGE) \
 	uvicorn scripts.demo.main_demo:app --host 0.0.0.0 --port 8000
 
 docker-run-flask:  ## Run the Docker image and mount the ports required by Flask (IMAGE=py-base)
-	#docker run -p 5000:5000 py-base flask --app main/__init__.py run --host=0.0.0.0
+	#docker run -p 5000:5000 py-base flask --app main/.gitkeep.py run --host=0.0.0.0
 	docker run -d --name $(CONTAINER) -p 5000:5000 $(IMAGE) \
 	flask --app scripts.demo.main_demo.py run --host=0.0.0.0
 
