@@ -3,98 +3,92 @@ import json
 import torch
 import faiss
 import numpy as np
-from lib.path import get_path
+import asyncio
 from typing import Any
-from transformers import pipeline
+from lib.path import get_path
+from concurrent.futures import ThreadPoolExecutor
 from transformers import AutoTokenizer, AutoModel
 
+# === Config ===
+MODEL_NAME = "lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct"
+DEVICE_MAP = {"": 0} if torch.cuda.is_available() else "auto"
 
-def load_embeddings(embedding_path: str) -> tuple[list, np.array]:
-    with open(embedding_path, "r") as f:
-        data = json.load(f)
-    texts = [item["text"] for item in data]
-    embeddings = np.array([item["embedding"] for item in data], dtype="float32")
-    return texts, embeddings
+# pipe_llama = pipeline(
+#     "text-generation",
+#     model=MODEL_NAME,
+#     torch_dtype=torch.bfloat16,
+#     device_map=DEVICE_MAP,
+#     temperature=0.5,
+# )
+
+# === Load Embeddings and FAISS Index Once ===
+embedding_path = os.path.join(get_path(key="DATA"), "embeddings", "laws_embedding.json")
+with open(embedding_path, "r") as f:
+    data = json.load(f)
+texts_cache = [item["text"] for item in data]
+embeddings_cache = np.array([item["embedding"] for item in data], dtype="float32")
+index_cache = faiss.IndexFlatL2(embeddings_cache.shape[1])
+index_cache.add(embeddings_cache)
+
+# === Preload Embeddings and Model and Tokenizer ===
+embedding_tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+embedding_model = AutoModel.from_pretrained(MODEL_NAME, torch_dtype=torch.float16).to(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+embedding_model.eval()
+
+# === Async Thread Pool for Parallel LLM Calls ===
+executor = ThreadPoolExecutor(max_workers=2)
+
+# === Placeholders for LLM pipeline and init function ===
+pipe_llama = None
 
 
-def create_faiss_idx(embeddings: np.array) -> Any:
-    dim = embeddings.shape[1]
-    index = faiss.IndexFlatL2(dim)
-    index.add(embeddings)
-    return index
+def set_pipeline(pipeline_object):
+    global pipe_llama
+    pipe_llama = pipeline_object
 
 
 def search_faiss_idx(
-    model_name: str, query: str, idx: Any, texts: list, top_k: int, max_length: int
+    query: str,
+    idx: Any,
+    texts: list,
+    top_k: int,
+    max_length: int,
 ) -> list:
-    # Load the word embedding generation model
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name, torch_dtype=torch.float16).to(
-        "cuda" if torch.cuda.is_available() else "cpu"
-    )
-    model.eval()
+    # tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    # model = AutoModel.from_pretrained(MODEL_NAME, torch_dtype=torch.float16).to(
+    #     "cuda" if torch.cuda.is_available() else "cpu")
+    # model.eval()
 
-    tokens = tokenizer(
+    tokens = embedding_tokenizer(
         query, padding=True, truncation=True, max_length=max_length, return_tensors="pt"
     ).to("cuda" if torch.cuda.is_available() else "cpu")
     with torch.no_grad():
-        query_embedding = model(**tokens).last_hidden_state.mean(dim=1).cpu().numpy()
-
+        query_embedding = (
+            embedding_model(**tokens).last_hidden_state.mean(dim=1).cpu().numpy()
+        )
     query_embedding = query_embedding.astype("float32")
 
-    # Query similar word embeddings
     distances, indices = idx.search(query_embedding, top_k)
     results = [
-        {"text": texts[idx], "score": distances[0][i]}
-        for i, idx in enumerate(indices[0])
+        {"text": texts[i], "score": distances[0][j]} for j, i in enumerate(indices[0])
     ]
     return results
 
 
-def llama_generate_response(
-    model_name: str, context: str, query: str, max_token: int
-) -> str:
-    # Available model names
-    lis_models = [
-        "lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct",
-        "meta-llama/Llama-3.2-1B-Instruct",
-        "meta-llama/Llama-3.2-3B-Instruct",
-    ]
-
-    # Confirm the model name in use
-    if model_name in lis_models:
-        model_name = model_name
-    else:
-        model_name = "lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct"
-
-    # Check if GPU is available
-    if torch.cuda.is_available():
-        device_map = {"": 0}
-    else:
-        device_map = "auto"
-
-    # Invoke the LLM
-    pipe = pipeline(
-        "text-generation",
-        model=model_name,
-        torch_dtype=torch.bfloat16,
-        device_map=device_map,
-        temperature=0.5,
-    )
-
+def llama_generate_response(context: str, query: str, max_token: int) -> str:
     # Prompt
     prompt = """
         你是一個台灣法律諮詢顧問。請閱讀使用者提供的問題，檢索台灣法律條文，並根據案例中所述行為識別可能涉及的法規與條文。
-        請在回答中包含：
+        在回答中包含：
         1.回答法規名稱、法條編號和內容。
         2.簡短說明使用者的敘述有哪些內容，符合法條的構成要件。
         3.最後簡短說明法律程序上初步建議，例如建議尋求律師協助或可能的第三方協助。
         4.對於不確定的內容請直接回答不知道，不可以提供未經查證的法律解釋。
         5.在回答的最後需要提醒此為非正式法律意見。
         """
-    if context is None or len(context) == 0:
-        prompt = prompt
-    else:
+    if context:
         prompt += f"下列為檢索法條後的參考資料，請摘要重點做為參考: {context}"
 
     # The input to the model, including the prompt and the user's query
@@ -104,121 +98,25 @@ def llama_generate_response(
     ]
 
     # The result generated by model inference
-    outputs = pipe(messages, max_new_tokens=max_token)
+    outputs = pipe_llama(messages, max_new_tokens=max_token)
 
     # Retrieve the model output and return it
     str_result = outputs[0]["generated_text"][-1]["content"]
     return str_result
 
 
-def llm_without_rag(llm_model: str, query: str, max_token: int) -> str:
-    # Retrieve the response
-    answer = llama_generate_response(
-        model_name=llm_model, context="", query=query, max_token=max_token
-    )
-    return answer
-
-
-def llm_with_rag(
-    embedding_model: str,
-    embedding_dataset: str,
-    llm_model: str,
-    max_token: int,
-    query: str,
-    top_k: int,
-) -> str:
-    # Load vector data
-    texts, embeddings = load_embeddings(embedding_path=embedding_dataset)
-
-    # Build a FAISS index
-    index = create_faiss_idx(embeddings=embeddings)
-
+def llama_response(query: str) -> str:
     # Retrieve relevant content
     top_results = search_faiss_idx(
-        model_name=embedding_model,
         query=query,
-        max_length=512,
-        idx=index,
-        texts=texts,
-        top_k=top_k,
-    )
-
-    # Merge the retrieved content into the context
-    context = "\n".join([result["text"] for result in top_results])
-
-    # Retrieve the response
-    answer = llama_generate_response(
-        model_name=llm_model, context=context, query=query, max_token=max_token
-    )
-    return answer
-
-
-def llama_response(model_name: str, embeddings_path: str, query: str) -> str:
-    # Load vector data
-    texts, embeddings = load_embeddings(embedding_path=embeddings_path)
-
-    # Build a FAISS index
-    index = create_faiss_idx(embeddings=embeddings)
-
-    # Retrieve relevant content
-    top_results = search_faiss_idx(
-        model_name=model_name,
-        query=query,
-        idx=index,
-        texts=texts,
-        top_k=8,
+        idx=index_cache,
+        texts=texts_cache,
+        top_k=5,
         max_length=512,
     )
-
     # Merge the retrieved content into the context
     context = "\n".join([result["text"] for result in top_results])
-
-    # 確認所使用的模型名稱
-    model_name = "lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct"
-
-    # Check if GPU is available
-    if torch.cuda.is_available():
-        device_map = {"": 0}
-    else:
-        device_map = "auto"
-
-    # Set the prompt
-    prompt = """
-    你是一個台灣法律諮詢顧問。請閱讀使用者提供的問題，檢索台灣法律條文，並根據案例中所述行為識別可能涉及的法規與條文。
-    請在回答中包含：
-    1.回答法規名稱、法條編號和內容。
-    2.簡短說明使用者的敘述有哪些內容，符合法條的構成要件。
-    3.最後簡短說明法律程序上初步建議，例如建議尋求律師協助或可能的第三方協助。
-    4.對於不確定的內容請直接回答不知道，不可以提供未經查證的法律解釋。
-    5.在回答的最後需要提醒此為非正式法律意見。
-    """
-    if context is None or len(context) == 0:
-        prompt = prompt
-    else:
-        prompt += f"下列為檢索法條後的參考資料，請摘要重點做為參考: {context}"
-
-    # Invoke the LLM
-    pipe = pipeline(
-        "text-generation",
-        model=model_name,
-        torch_dtype=torch.bfloat16,
-        device_map=device_map,
-        temperature=0.5,
-        # return_full_text=False
-    )
-
-    # The input segment sent to the model, including the prompt and the user's question
-    messages = [
-        {"role": "system", "content": prompt},
-        {"role": "user", "content": query},
-    ]
-
-    # The result generated by model inference
-    outputs = pipe(messages, max_new_tokens=512)
-
-    # Retrieve the model output and return it
-    result = outputs[0]["generated_text"][-1]["content"]
-    result = result.replace("system", "").replace("user", "")
+    result = llama_generate_response(context=context, query=query, max_token=512)
     return result
 
 
@@ -226,25 +124,6 @@ def llama_judgement(
     answer_x: str,
     answer_y: str,
 ) -> str:
-    # Use the language model
-    model_name = "lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct"
-
-    # Check if GPU is available
-    if torch.cuda.is_available():
-        device_map = {"": 0}
-    else:
-        device_map = "auto"
-
-    # Invoke the LLM
-    pipe = pipeline(
-        "text-generation",
-        model=model_name,
-        torch_dtype=torch.bfloat16,
-        device_map=device_map,
-        temperature=0.5,
-        # return_full_text=False
-    )
-
     # Set the prompt
     prompt = """
     你是一個台灣法律諮詢顧問，請閱讀"回答1"和"回答2"的內容，並根據法條使用的正確性和回答內容的正確性，告訴我哪一個回答比較妥當。
@@ -264,43 +143,27 @@ def llama_judgement(
     ]
 
     # The result generated by model inference
-    outputs = pipe(messages, max_new_tokens=512)
+    outputs = pipe_llama(messages, max_new_tokens=512)
     judgement = outputs[0]["generated_text"][-1]["content"]
     return judgement
 
 
-def response_with_judgement(query: str) -> str:
-    # Get the embedding file
-    fil_embedding = os.path.join(
-        get_path(key="DATA"), "embeddings", "laws_embedding.json"
-    )
+async def async_llama_response(query: str) -> str:
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(executor, llama_response, query)
 
-    # Choose model
-    model_name = "lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct"
 
-    # Generate two responses
-    answer_1 = llama_response(
-        model_name=model_name, embeddings_path=fil_embedding, query=query
+async def async_response_with_judgement(query: str) -> str:
+    answer_1, answer_2 = await asyncio.gather(
+        async_llama_response(query), async_llama_response(query)
     )
     answer_1 = answer_1.replace("\n", "").replace("。", "。\n")
-
-    answer_2 = llama_response(
-        model_name=model_name, embeddings_path=fil_embedding, query=query
-    )
     answer_2 = answer_2.replace("\n", "").replace("。", "。\n")
+    judgement = llama_judgement(answer_x=answer_1, answer_y=answer_2)
 
-    # Use a loop to get the best response
-    judgement_tag = True
-    final_answer = ""
-    while judgement_tag:
-        # Select the appropriate response
-        judgement = llama_judgement(answer_x=answer_1, answer_y=answer_2)
-
-        # Select the final response
-        if "回答1" in judgement:
-            final_answer = answer_1
-            judgement_tag = False
-        if "回答2" in judgement:
-            final_answer = answer_2
-            judgement_tag = False
-    return final_answer
+    # Select the final response
+    if "回答1" in judgement:
+        return answer_1
+    elif "回答2" in judgement:
+        return answer_2
+    return "[⚠️ 無法判斷最佳回覆，請稍後再試。]"

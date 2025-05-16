@@ -1,24 +1,20 @@
 import os
+import torch
+import asyncio
 from pyngrok import ngrok
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from transformers import pipeline
 from lib.path import get_path
-from lib.token import get_hf_token
-from lib.token import get_line_access
-from lib.token import get_line_secret
+from lib.token import get_hf_token, get_line_access, get_line_secret
 from lib.ngrok import start_ngrok
-from lib.rag import response_with_judgement
-
+from lib.rag import async_response_with_judgement, set_pipeline, MODEL_NAME, DEVICE_MAP
 
 # Add HuggingFace token
 token_info = get_hf_token()
-(
-    print(token_info)
-    if token_info is not None
-    else print(">>> HuggingFace token NOT found.")
-)
+print(token_info if token_info is not None else ">>> HuggingFace token NOT found.")
 
 # Get the embedding files
 fil_embeddings = os.path.join(get_path(key="DATA"), "embeddings", "laws_embedding.json")
@@ -32,9 +28,28 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # Flask application
 app = Flask(__name__)
 
+# Load and set the pipeline
+print(">>> Loading language model pipeline...")
+pipe = pipeline(
+    "text-generation",
+    model=MODEL_NAME,
+    torch_dtype=torch.bfloat16,
+    device_map=DEVICE_MAP,
+    temperature=0.5,
+)
+set_pipeline(pipe)
+print(">>> Language model pipeline loaded.")
 
-# Line webhook
-# Define Flask's HTTP routing and map Line's POST request to the callback function
+# # Model Warm-up
+# print(">>> Warming up the model...")
+# _ = pipe_llama([
+#     {"role": "system", "content": "你是誰？"},
+#     {"role": "user", "content": "這是一個測試訊息，用來啟動模型。"}
+# ], max_new_tokens=32)
+# print(">>> Model warm-up completed.")
+
+
+# Line webhook root; Define Flask's HTTP routing and map Line's POST request to the callback function
 @app.route("/", methods=["POST"])
 # Line Webhook router receives webhook requests from the Line platform
 def callback():
@@ -51,6 +66,7 @@ def callback():
 
 
 @handler.add(MessageEvent, message=TextMessage)
+
 # Even handling
 def handle_message(event):
     try:
@@ -59,7 +75,7 @@ def handle_message(event):
         print(">>> Successfully received user message")
 
         # Llama generates answers
-        response = response_with_judgement(query=user_message)
+        response = asyncio.run(async_response_with_judgement(query=user_message))
 
         # Return answers to Line users
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response))
@@ -68,27 +84,10 @@ def handle_message(event):
 
 
 if __name__ == "__main__":
-    # # Set the Python path
-    # python_path = os.environ.get("PROJECT_ROOT") + os.getenv("PYTHONPATH")
-    # env = os.environ.copy()
-    # env["PYTHONPATH"] = python_path
-    #
-    # # Start Flask service
-    # flask_process = subprocess.Popen(
-    #     ["python", "-m", "flask", "--app", "main.legal_linebot_local_ver", "run", "--host=0.0.0.0", "--port=5000"],
-    #     cwd=os.environ.get("PROJECT_ROOT"),
-    #     env=env
-    # )
-
-    # Start ngrok
-    # ngrok_url, ngrok_process = start_ngrok(port=5000)
     ngrok_url = start_ngrok(port=5000)
-
     try:
         app.run(host="0.0.0.0", port=5000)
     except KeyboardInterrupt:
         print(">>> 終止 Flask 和 Ngrok.")
-        # ngrok_process.terminate()
-        # Turn off this tunnel and clear all tunnels
         ngrok.disconnect(ngrok_url)
         ngrok.kill()
