@@ -3,56 +3,36 @@ from typing import Optional
 from lib.path import get_path
 
 
-def get_hf_token() -> Optional[str]:
-    # Get ".token" file
-    fil_token = get_path(key="TOKEN")
+class TokenManager:
+    def __init__(self):
+        self.token_path = get_path(key="TOKEN")
+        self.tokens = self._load_tokens()
 
-    # Get HuggingFace token
-    if os.path.exists(fil_token):
-        with open(fil_token, "r") as file:
-            for line in file:
-                # Parse format "key=value"
-                key, _, value = line.partition("=")
-                if key.strip() == "HUGGINGFACE_TOKEN":
-                    hf_token = value.strip()
-                    command = f"export HUGGINGFACE_TOKEN={hf_token}"
-                    os.system(command)
-                    break
+    def _load_tokens(self) -> dict:
+        token_dict = {}
+        if os.path.exists(self.token_path):
+            with open(self.token_path, "r") as file:
+                for line in file:
+                    key, _, value = line.partition("=")
+                    if key and value:
+                        token_dict[key.strip()] = value.strip()
+        return token_dict
+
+    def get(self, key: str) -> Optional[str]:
+        return self.tokens.get(key)
+
+    def get_hf_token(self) -> Optional[str]:
+        token = self.get("HUGGINGFACE_TOKEN")
+        if token:
+            os.environ["HUGGINGFACE_TOKEN"] = token
             return ">>> HuggingFace token applied."
-    return None
+        return None
 
+    def get_line_access(self) -> Optional[str]:
+        return self.get("LINE_CHANNEL_ACCESS_TOKEN")
 
-def get_line_access() -> Optional[str]:
-    # Get ".token" file
-    fil_token = get_path(key="TOKEN")
+    def get_line_secret(self) -> Optional[str]:
+        return self.get("LINE_CHANNEL_SECRET")
 
-    # Get Line Access
-    if os.path.exists(fil_token):
-        line_access = None
-        with open(fil_token, "r") as file:
-            for line in file:
-                # Parse format "key=value"
-                key, _, value = line.partition("=")
-                if key.strip() == "LINE_CHANNEL_ACCESS_TOKEN":
-                    line_access = value.strip()
-                    break
-            return line_access
-    return None
-
-
-def get_line_secret() -> Optional[str]:
-    # Get ".token" file
-    fil_token = get_path(key="TOKEN")
-
-    # Get Line Secret
-    if os.path.exists(fil_token):
-        line_secret = None
-        with open(fil_token, "r") as file:
-            for line in file:
-                # Parse format "key=value"
-                key, _, value = line.partition("=")
-                if key.strip() == "LINE_CHANNEL_SECRET":
-                    line_secret = value.strip()
-                    break
-            return line_secret
-    return None
+    def get_google_api_key(self) -> Optional[str]:
+        return self.get("GEMINI_API_KEY")
