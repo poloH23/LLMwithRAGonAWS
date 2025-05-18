@@ -18,8 +18,8 @@ def test_list_append():
 
 
 def test_token():
-    from lib.token import get_line_access
-    from lib.token import get_line_secret
+    from lib.token_utils import get_line_access
+    from lib.token_utils import get_line_secret
 
     token = get_line_access()
     secret = get_line_secret()

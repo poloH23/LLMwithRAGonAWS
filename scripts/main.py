@@ -1,16 +1,14 @@
 import os
-import torch
-import asyncio
+import time
 from pyngrok import ngrok
 from flask import Flask, request, abort
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage
-from transformers import pipeline
 from lib.path import get_path
-from lib.token import get_hf_token, get_line_access, get_line_secret
 from lib.ngrok import start_ngrok
-from lib.rag import async_response_with_judgement, set_pipeline, MODEL_NAME, DEVICE_MAP
+from lib.rag import response_with_judgement
+from lib.token_utils import get_hf_token, get_line_access, get_line_secret
 
 # Add HuggingFace token
 token_info = get_hf_token()
@@ -28,25 +26,11 @@ handler = WebhookHandler(LINE_CHANNEL_SECRET)
 # Flask application
 app = Flask(__name__)
 
-# Load and set the pipeline
-print(">>> Loading language model pipeline...")
-pipe = pipeline(
-    "text-generation",
-    model=MODEL_NAME,
-    torch_dtype=torch.bfloat16,
-    device_map=DEVICE_MAP,
-    temperature=0.5,
-)
-set_pipeline(pipe)
-print(">>> Language model pipeline loaded.")
-
-# # Model Warm-up
-# print(">>> Warming up the model...")
-# _ = pipe_llama([
-#     {"role": "system", "content": "你是誰？"},
-#     {"role": "user", "content": "這是一個測試訊息，用來啟動模型。"}
-# ], max_new_tokens=32)
-# print(">>> Model warm-up completed.")
+time_s = time.time()
+print(">>> Model warm-up...")
+str_test = response_with_judgement("民法第184條的內容是什麼？")
+print(f">>> Model test: {str_test}")
+print(f">>> Model warm-up took {round((time.time()-time_s),2)} seconds.")
 
 
 # Line webhook root; Define Flask's HTTP routing and map Line's POST request to the callback function
@@ -70,15 +54,17 @@ def callback():
 # Even handling
 def handle_message(event):
     try:
+        time_s = time.time()
         # Receive user messages
         user_message = event.message.text
         print(">>> Successfully received user message")
 
         # Llama generates answers
-        response = asyncio.run(async_response_with_judgement(query=user_message))
+        response = response_with_judgement(user_message)
 
         # Return answers to Line users
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=response))
+        print(f">>> Processing time: {time.time()-time_s} seconds")
     except Exception as e:
         print(f">>> An error occurred during processing: {str(e)}")
 

@@ -42,6 +42,10 @@ demo-run: MODE=python  ## Run example runner (MODE=python|fastapi|flask, NGROK=1
 demo-run:
 	python scripts/demo/main_demo.py --mode $(MODE) $(if $(NGROK),--ngrok)
 
+# === 🚀 Run Main Script ===
+main-run:
+	python -m scripts.main
+
 # === 🧬 Conda Environment ===
 conda-export:  ## Export conda env to file
 	conda env export | grep -v "^prefix: " > bak/environment.yml
