@@ -1,3 +1,4 @@
+import os
 import time
 from pyngrok import ngrok
 from flask import Flask, request, abort
@@ -12,11 +13,13 @@ from linebot.v3.messaging import (
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from lib.ngrok import start_ngrok
 from lib.token_utils import TokenManager
+from lib.rag_gemini import response_with_judgement
 
 # Add HuggingFace token
 tm = TokenManager()
-hf_token = tm.get_hf_token()
-print(hf_token if hf_token is not None else ">>> HuggingFace token NOT found.")
+# hf_token = tm.get_hf_token()
+# print(hf_token if hf_token is not None else ">>> HuggingFace token NOT found.")
+os.environ["GOOGLE_API_KEY"] = tm.get_google_api_key() or ""
 
 # Line bot deployment
 LINE_CHANNEL_ACCESS_TOKEN = tm.get_line_access()
@@ -66,8 +69,8 @@ def handle_message(event):
             print(">>> Successfully received user message")
 
             # Llama generates answers
-            # response = response_with_judgement(user_message)
-            response = f"Test: receiving user message: {user_message}"
+            response = response_with_judgement(user_message)
+            # response = f"Test: receiving user message: {user_message}"
 
             # Return answers to Line users
             messaging_api.reply_message(
