@@ -15,10 +15,8 @@ flask~=3.1.0
 
 # Ngrok requirements
 pyngrok~=7.2.5
-
 python-dotenv~=1.0.1
 PyYAML~=6.0.1
-
 torch~=2.5.1
 transformers~=4.46.3
 requests~=2.32.3

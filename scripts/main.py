@@ -12,13 +12,14 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from lib.ngrok import start_ngrok
+from lib.handler import update_line_webhook
 from lib.token_utils import TokenManager
 from lib.rag_gemini import response_with_judgement
 
 # Add HuggingFace token
 tm = TokenManager()
-# hf_token = tm.get_hf_token()
-# print(hf_token if hf_token is not None else ">>> HuggingFace token NOT found.")
+hf_token = tm.get_hf_token()
+print(hf_token if hf_token is not None else ">>> HuggingFace token NOT found.")
 os.environ["GOOGLE_API_KEY"] = tm.get_google_api_key() or ""
 
 # Line bot deployment
@@ -30,13 +31,6 @@ handler = WebhookHandler(channel_secret=LINE_CHANNEL_SECRET)
 
 # Flask application
 app = Flask(__name__)
-
-# Model test; Warm up the model before the first request is received.
-# time_s = time.time()
-# print(">>> Model warm-up...")
-# str_test = response_with_judgement("民法第184條的內容是什麼？")
-# print(f">>> Model test: {str_test}")
-# print(f">>> Model warm-up took {round((time.time()-time_s),2)} seconds.")
 
 
 # Line webhook root; Define Flask's HTTP routing and map Line's POST request to the callback function
@@ -89,6 +83,9 @@ def handle_message(event):
 
 if __name__ == "__main__":
     ngrok_url = start_ngrok(port=5000)
+    ngrok_url = str(ngrok_url).split(" ")[1].replace('"', "")
+    print(f">>> {str(ngrok_url)}")
+    update_line_webhook(public_url=ngrok_url, access_token=LINE_CHANNEL_ACCESS_TOKEN)
     try:
         app.run(host="0.0.0.0", port=5000, debug=False)
     except KeyboardInterrupt:

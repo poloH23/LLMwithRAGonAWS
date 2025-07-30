@@ -18,10 +18,10 @@ def test_list_append():
 
 
 def test_token():
-    from lib.token_utils import get_line_access
-    from lib.token_utils import get_line_secret
+    from lib.token_utils import TokenManager
 
-    token = get_line_access()
-    secret = get_line_secret()
+    tm = TokenManager()
+    token = tm.get_line_access()
+    secret = tm.get_line_secret()
     assert token != "", print(token)
     assert secret != "", print(secret)

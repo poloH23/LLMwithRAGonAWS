@@ -174,10 +174,6 @@ make test
 └── README.md
 ```
 
-## 🤝 Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request for suggestions or bug fixes.
-
 ---
 
 ## 📄 License

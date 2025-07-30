@@ -60,9 +60,9 @@ make test
 ## 🚀 Step 5: Try Out Demo Apps
 
 ```bash
-make run-demo MODE=python
-make run-demo MODE=fastapi NGROK=1
-make run-demo MODE=flask
+make demo-run MODE=python
+make demo-run MODE=fastapi NGROK=1
+make demo-run MODE=flask
 ```
 
 ---
