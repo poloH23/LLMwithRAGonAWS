@@ -1,8 +1,10 @@
-# 📌 Project Name
+# 📌 Taiwan Legal Line Chatbot
 
-This project builds a Line chatbot that provides legal information based on Taiwan-Law-LLaMA, a large language model fine-tuned on Taiwanese legal texts. The system integrates a Retrieval-Augmented Generation (RAG) pipeline to enhance factual accuracy and contextual relevance.
+This project builds a Line chatbot that provides legal information based on [Taiwan-Legal-LLaMA](https://huggingface.co/lianghsun/Llama-3.2-Taiwan-Legal-3B-Instruct), a large language model fine-tuned on Taiwanese legal texts. The system integrates a Retrieval-Augmented Generation (RAG) pipeline to enhance factual accuracy and contextual relevance.
 
 It is designed for deployment on AWS EC2 and supports scalable backend services via FastAPI, document indexing with FAISS, and a custom Line bot interface.
+
+Considering device limitations and response speed, I'm adopting the [Gemini API](https://ai.google.dev/) to address these shortcomings.
 
 ---
 
@@ -20,7 +22,6 @@ It is designed for deployment on AWS EC2 and supports scalable backend services 
 - [CI/CD Pipeline with GitHub Actions](#-cicd-pipeline-with-gitHub-actions)
 - [Quick Start](#-quick-start)
 - [Folder Structure](#-folder-structure)
-- [Contributing](#-contributing)
 - [License](#-license)
 
 ---
